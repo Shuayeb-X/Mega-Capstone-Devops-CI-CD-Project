@@ -647,6 +647,243 @@ docker restart nexus
 docker stop nexus
 ```
 
+# 🚀 Create EKS Terraform Cluster
+
+Terraform project:
+
+```text
+Eks_Terraform
+```
+
+---
+
+# 🔐 Configure IAM OIDC Provider
+
+The IAM OIDC provider is required for:
+
+- Connecting Amazon EKS with AWS IAM
+- Enabling IAM Roles for Service Accounts (IRSA)
+
+---
+
+# 📌 Relationship
+
+```text
+OIDC Provider  ---> REQUIRED FIRST
+
+IAM Service Account ---> Uses OIDC
+```
+
+---
+
+# ✅ Correct Order
+
+```text
+1. Create OIDC Provider First ✅
+
+2. Create IAM Service Account ✅
+```
+
+---
+
+# 📦 Create IAM Service Account for EBS CSI Driver
+
+Run:
+
+```bash
+eksctl create iamserviceaccount \
+  --region ap-south-1 \
+  --name ebs-csi-controller-sa \
+  --namespace kube-system \
+  --cluster test-cluster \
+  --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+  --approve \
+  --override-existing-serviceaccounts
+```
+
+---
+
+# 🚀 Apply Terraform Again
+
+After creating the IAM service account:
+
+```bash
+terraform apply -auto-approve
+```
+
+---
+
+# 🔗 Configure kubectl
+
+Connect kubectl with AWS EKS cluster:
+
+```bash
+aws eks --region ap-south-1 update-kubeconfig --name test-cluster
+```
+
+This command allows:
+
+- kubectl
+- Amazon EKS
+
+to communicate with each other.
+
+---
+
+# 💾 Install AWS EBS CSI Driver
+
+Run:
+
+```bash
+kubectl apply -k \
+"github.com/kubernetes-sigs/aws-ebs-csi-driver/deploy/kubernetes/overlays/stable/ecr/?ref=release-1.11"
+```
+
+The EBS CSI Driver enables:
+
+- Dynamic Persistent Volumes
+- EBS Storage Integration
+- PVC Support in Kubernetes
+
+---
+
+# 🌐 Install NGINX Ingress Controller
+
+Run:
+
+```bash
+kubectl apply -f \
+https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+```
+
+---
+
+# ✅ Verify Cluster Nodes
+
+Check nodes:
+
+```bash
+kubectl get nodes
+```
+
+Expected output:
+
+```text
+STATUS   Ready
+```
+
+---
+
+# ⚠️ IMPORTANT NOTES
+
+Do NOT add:
+
+- OIDC Terraform resource
+- EBS Addon initially
+
+---
+
+# 📌 Recommended Approach
+
+First make sure:
+
+- EKS Cluster works
+- Node Group works
+- kubectl connects successfully
+
+Only after that:
+
+- Add EBS CSI Driver
+- Configure advanced addons
+
+---
+
+# 📦 Check System Pods
+
+Run:
+
+```bash
+kubectl get pods -A
+```
+
+You should see:
+
+- kube-system pods
+- ingress-nginx pods
+- aws-node pods
+- coredns pods
+
+running successfully.
+
+---
+
+# ✅ Infrastructure Created
+
+After successful setup, your infrastructure includes:
+
+| Component | Status |
+|-----------|--------|
+| VPC | ✅ |
+| Subnets | ✅ |
+| EKS Cluster | ✅ |
+| Node Group | ✅ |
+| kubectl Connected | ✅ |
+| OIDC Provider | ✅ |
+
+---
+
+# 📌 Useful Commands
+
+## Check Cluster Nodes
+
+```bash
+kubectl get nodes
+```
+
+---
+
+## Check All Pods
+
+```bash
+kubectl get pods -A
+```
+
+---
+
+## Check kube-system Pods
+
+```bash
+kubectl get pods -n kube-system
+```
+
+---
+
+## Verify kubectl Context
+
+```bash
+kubectl config current-context
+```
+
+---
+
+## Verify EKS Cluster
+
+```bash
+aws eks list-clusters
+```
+
+---
+
+# 🏆 Best Practices
+
+- Create OIDC before IAM Service Accounts
+- Verify cluster before installing addons
+- Use EBS CSI for dynamic storage
+- Use Terraform for infrastructure automation
+- Keep Terraform state secure
+
+---
+
 ---
 
 
