@@ -13,6 +13,7 @@ A complete production-style DevOps project using:
 - Nexus
 - NGINX Ingress
 - AWS EBS CSI Driver
+- Email set up
 - Prometheus
 - Grafana
 
@@ -59,7 +60,7 @@ Monitoring Stack
 # 🖥️ Infrastructure Setup
 
 Here we are using **4 Virtual Machines (VMs)** for the complete DevOps environment.
-
+![ images alt ]( https://github.com/Shuayeb-X/Mega-Capstone-Devops-CI-CD-Project/blob/abaa13994f3e1ad6f259e1be13e43645b6ef294a/4%20vm%20setup.png)
 ---
 
 # 🖥️ VM Architecture
