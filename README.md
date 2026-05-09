@@ -120,3 +120,51 @@ terraform version
 ```
 
 ---
+# ☸️ Install kubectl
+
+Official Documentation:
+
+https://kubernetes.io/docs/tasks/tools/
+
+## Download kubectl
+
+```bash
+curl -LO "https://dl.k8s.io/release/$(curl -L -s \
+https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+
+
+## Download SHA256
+
+
+curl -LO "https://dl.k8s.io/release/$(curl -L -s \
+https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+
+
+## Verify Binary
+
+
+echo "$(cat kubectl.sha256) kubectl" | sha256sum --check
+
+
+## Install kubectl
+
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+```
+
+## Alternative Local Installation
+
+```bash
+chmod +x kubectl
+
+mkdir -p ~/.local/bin
+
+mv ./kubectl ~/.local/bin/kubectl
+```
+
+## Verify kubectl
+
+```bash
+kubectl version --client
+```
+
+---
