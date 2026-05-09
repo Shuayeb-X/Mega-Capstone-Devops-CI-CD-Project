@@ -886,6 +886,1408 @@ aws eks list-clusters
 
 ---
 
+# 📦 Kubernetes Manifest Includes
 
+Manifest includes:
+
+- Namespace
+- Secret
+- EBS StorageClass
+- PVC
+- Deployment
+- Service
+- HPA
+- Ingress
+
+using AWS EBS dynamic storage provisioning in Kubernetes.
+
+---
+
+# ⚠️ Important Note
+
+Don't create a manual PersistentVolume (PV) because with:
+
+- AWS EBS CSI
+- StorageClass
+
+Kubernetes creates the PV automatically.
+
+---
+
+# 🚀 Dynamic Provisioning
+
+This is called:
+
+```text
+Dynamic Provisioning
+```
+
+---
+
+# 📌 Flow
+
+```text
+PVC ---> StorageClass ---> AWS EBS Volume ---> PV auto-created
+```
+
+---
+
+# 📦 When PVC is Created
+
+So when this PVC is created:
+
+```yaml
+kind: PersistentVolumeClaim
+```
+
+Kubernetes automatically:
+
+- creates AWS EBS disk
+- creates PersistentVolume
+- binds PV to PVC
+
+---
+
+# ✅ Verify PersistentVolume
+
+Run:
+
+```bash
+kubectl get pv
+```
+
+You will see an automatically created PV.
+
+# 🔐 RBAC Permission
+
+## 1. ServiceAccount
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+
+metadata:
+  name: jenkins
+  namespace: webapps
+```
+
+---
+
+## 2. Role
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+
+metadata:
+  name: jenkins-role
+  namespace: webapps
+
+rules:
+
+  # Permissions for core API resources
+  - apiGroups: [""]
+    resources:
+      - secrets
+      - configmaps
+      - persistentvolumeclaims
+      - services
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - delete
+      - patch
+
+  # Permissions for apps API group
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - replicasets
+      - statefulsets
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - delete
+      - patch
+
+  # Permissions for networking API group
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - delete
+      - patch
+
+  # Permissions for autoscaling API group
+  - apiGroups: ["autoscaling"]
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - delete
+      - patch
+```
+
+---
+
+## 3. RoleBinding
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+
+metadata:
+  name: jenkins-rolebinding
+  namespace: webapps
+
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: jenkins-role
+
+subjects:
+  - kind: ServiceAccount
+    name: jenkins
+    namespace: webapps
+```
+
+---
+
+## 4. ClusterRole
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+
+metadata:
+  name: jenkins-cluster-role
+
+rules:
+
+  # Permissions for persistentvolumes
+  - apiGroups: [""]
+    resources:
+      - persistentvolumes
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - delete
+
+  # Permissions for storageclasses
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - storageclasses
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - delete
+
+  # Permissions for ClusterIssuer
+  - apiGroups: ["cert-manager.io"]
+    resources:
+      - clusterissuers
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - delete
+```
+
+---
+
+## 5. ClusterRoleBinding
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+
+metadata:
+  name: jenkins-cluster-rolebinding
+
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jenkins-cluster-role
+
+subjects:
+  - kind: ServiceAccount
+    name: jenkins
+    namespace: webapps
+```
+
+---
+
+# 🚀 Apply All RBAC Files
+
+```bash
+kubectl apply -f serviceaccount.yaml
+
+kubectl apply -f role.yaml
+
+kubectl apply -f rolebinding.yaml
+
+kubectl apply -f clusterrole.yaml
+
+kubectl apply -f clusterrolebinding.yaml
+```
+
+---
+
+# ✅ Verify ServiceAccount Permissions
+
+```bash
+kubectl auth can-i create secrets \
+--as=system:serviceaccount:webapps:jenkins -n webapps
+```
+
+```bash
+kubectl auth can-i create storageclasses \
+--as=system:serviceaccount:webapps:jenkins
+```
+
+```bash
+kubectl auth can-i create persistentvolumes \
+--as=system:serviceaccount:webapps:jenkins
+```
+
+---
+
+# 🔑 Token for Jenkins Deployment Permission
+
+```yaml
+apiVersion: v1
+kind: Secret
+
+type: kubernetes.io/service-account-token
+
+metadata:
+  name: mysecretname
+
+  annotations:
+    kubernetes.io/service-account.name: myserviceaccount
+```
+
+---
+
+# 📌 Verify Jenkins Secret
+
+```bash
+kubectl describe secret jenkins-secret -n webapps
+```
+
+---
+
+# 📦 Important Note
+
+Create the RBAC file inside your:
+
+```text
+CD Repository
+```
+
+because the CD pipeline deploys Kubernetes manifests.
+
+---
+
+# 🚀 Repository Setup
+
+```text
+CI Repo  ---> Builds Docker Image
+
+CD Repo  ---> Deploys Kubernetes Manifests
+```
+
+---
+
+# 📄 Create RBAC File
+
+Create:
+
+```text
+jenkins-rbac.yaml
+```
+
+inside your:
+
+```text
+CD Repository
+```
+
+# 🔐 Jenkins Kubernetes RBAC Permission
+
+Jenkins Kubernetes service account exists
+
+But it does NOT have permission to manage:
+
+- ingress
+- deployments
+- services
+- pvc etc.
+
+---
+
+# ✅ You Need
+
+- Role
+- RoleBinding
+
+---
+
+# 📄 Create `jenkins-rbac.yaml`
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+
+metadata:
+  name: jenkins
+  namespace: webapps
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+
+metadata:
+  namespace: webapps
+  name: jenkins-role
+
+rules:
+
+- apiGroups: [""]
+  resources:
+    - pods
+    - services
+    - secrets
+    - configmaps
+    - persistentvolumeclaims
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+
+- apiGroups: ["apps"]
+  resources:
+    - deployments
+    - replicasets
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+
+- apiGroups: ["networking.k8s.io"]
+  resources:
+    - ingresses
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+
+- apiGroups: ["autoscaling"]
+  resources:
+    - horizontalpodautoscalers
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+
+- apiGroups: ["storage.k8s.io"]
+  resources:
+    - storageclasses
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+
+metadata:
+  name: jenkins-rolebinding
+  namespace: webapps
+
+subjects:
+- kind: ServiceAccount
+  name: jenkins
+  namespace: webapps
+
+roleRef:
+  kind: Role
+  name: jenkins-role
+  apiGroup: rbac.authorization.k8s.io
+```
+
+---
+
+# 🚀 Apply RBAC File
+
+Run:
+
+```bash
+kubectl apply -f jenkins-rbac.yaml
+```
+
+---
+
+# 🔄 Rerun Jenkins Pipeline
+
+Now rerun:
+
+```text
+Jenkins CD Pipeline
+```
+
+---
+
+# ✅ Pipeline Can Now Deploy
+
+Your pipeline should successfully apply:
+
+- ingress
+- deployment
+- service
+- pvc
+- hpa
+- secret
+
+inside namespace:
+
+```text
+webapps
+```
+
+using:
+
+```text
+Jenkins Kubernetes RBAC permissions
+```
+
+---
+
+# 🚀 Run CD Jenkins Pipeline
+
+Now run your:
+
+```text
+CD Jenkins Pipeline
+```
+
+# 🌐 Fix NGINX Ingress Controller Issues
+
+Sometimes ingress does not work.
+
+In that case follow these steps:
+
+---
+
+# ✅ 1. Check Ingress Controller
+
+Run:
+
+```bash
+kubectl get pods -n ingress-nginx
+```
+
+---
+
+# 🔄 2. Reinstall Ingress Controller
+
+If pods are:
+
+- missing
+- not running
+
+then reinstall ingress controller.
+
+Run:
+
+```bash
+kubectl apply -f \
+https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+```
+
+---
+
+# ⏳ 3. Wait 2–3 Minutes
+
+Wait for ingress controller pods to start.
+
+---
+
+# 📊 4. Install Metrics Server (Optional but Recommended)
+
+Metrics server is required for:
+
+- HPA
+- CPU monitoring
+- autoscaling
+- Kubernetes metrics
+
+Run:
+
+```bash
+kubectl apply -f \
+https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+```
+
+---
+
+# ✅ Verify Metrics Server
+
+Run:
+
+```bash
+kubectl get deployment metrics-server -n kube-system
+```
+
+---
+
+# 🔍 Check Ingress Pods Again
+
+Run:
+
+```bash
+kubectl get pods -n ingress-nginx
+```
+
+You should see:
+
+```text
+Running
+```
+
+---
+
+# ⚠️ IMPORTANT
+
+Edit your GitHub file:
+
+```text
+Manifest/manifest.yaml
+```
+
+---
+
+# 🚨 If Ingress Pods Are Stuck in Pending
+
+Example:
+
+```text
+Pending
+```
+
+That means:
+
+```text
+Kubernetes cannot schedule pods on your node
+```
+
+---
+
+# 📌 Most Common Reason
+
+Your EKS node:
+
+```text
+t3.micro
+```
+
+does NOT have enough:
+
+- CPU
+- Memory
+
+---
+
+# 📦 Installed Components
+
+You installed:
+
+- ingress-nginx
+- cert-manager
+- EBS CSI
+- MySQL
+- HPA
+
+but your cluster only has:
+
+```text
+1 x t3.micro
+```
+
+which is too small.
+
+---
+
+# 🔍 Check Exact Error
+
+Run:
+
+```bash
+kubectl describe pod ingress-nginx-controller-7d65c586d6-4t62j -n ingress-nginx
+```
+
+At the bottom you will likely see:
+
+```text
+Insufficient cpu
+```
+
+or
+
+```text
+Insufficient memory
+```
+
+---
+
+# ✅ Best Fix
+
+Increase node instance type.
+
+---
+
+# 📄 Edit Terraform `main.tf`
+
+Change:
+
+```hcl
+instance_types = ["t3.micro"]
+```
+
+to:
+
+```hcl
+instance_types = ["t3.small"]
+```
+
+or preferably:
+
+```hcl
+instance_types = ["t3.medium"]
+```
+
+---
+
+# 📈 Increase Node Count
+
+Update:
+
+```hcl
+desired_size = 2
+
+max_size = 2
+
+min_size = 1
+```
+
+---
+
+# 🚀 Apply Terraform Changes
+
+Run:
+
+```bash
+terraform apply -auto-approve
+```
+
+Terraform will update the node group.
+
+---
+
+# ✅ Verify Nodes
+
+After a few minutes run:
+
+```bash
+kubectl get nodes
+```
+
+You should see:
+
+```text
+2 nodes
+```
+
+---
+
+# 🔍 Verify Ingress Pods
+
+Run:
+
+```bash
+kubectl get pods -n ingress-nginx
+```
+
+Pods should become:
+
+```text
+Running
+```
+
+---
+
+# 🔄 Rerun Jenkins Pipeline
+
+Now rerun:
+
+```text
+Jenkins CD Pipeline
+```
+
+---
+
+# 🎯 Final Result
+
+Your ingress creation should finally succeed.
+
+---
+
+# ✅ Expected Working Components
+
+- ingress-nginx
+- metrics-server
+- HPA
+- EBS CSI
+- cert-manager
+- MySQL
+- Jenkins CD pipeline
+
+all running successfully inside your EKS cluster.
+
+# 🔐 Create ClusterIssuer using cert-manager
+
+## `cluster-issuer.yaml`
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+
+metadata:
+  name: letsencrypt-prod
+
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+
+    email: office@devopsshack.com
+
+    privateKeySecretRef:
+      name: letsencrypt-prod
+
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+```
+
+---
+
+# 🚀 Apply ClusterIssuer
+
+Run:
+
+```bash
+kubectl apply -f cluster-issuer.yaml
+```
+
+---
+
+# ✅ Verify ClusterIssuer
+
+Run:
+
+```bash
+kubectl get clusterissuer
+```
+
+You should see:
+
+```text
+letsencrypt-prod   True
+```
+
+---
+
+# 📌 Purpose
+
+This creates a:
+
+```text
+cert-manager ClusterIssuer
+```
+
+using:
+
+- Let’s Encrypt
+- NGINX Ingress
+
+---
+
+# 🌐 Use Simpler Ingress
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+
+metadata:
+  name: mysql-ingress
+  namespace: webapps
+
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+
+spec:
+  ingressClassName: nginx
+
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+
+            backend:
+              service:
+                name: mysql-service
+
+                port:
+                  number: 3306
+```
+
+---
+
+# 🚀 Apply Manifest
+
+Run:
+
+```bash
+kubectl apply -f Manifest/manifest.yaml
+```
+
+---
+
+# 🔄 Run Jenkins Pipeline Again
+
+Now rerun:
+
+```text
+Jenkins CD Pipeline
+```
+
+---
+
+# ✅ Verify Deployment from EKS/DevOps VM
+
+## Check All Resources
+
+```bash
+kubectl get all -n webapps
+```
+
+---
+
+# 🌐 Check Ingress
+
+```bash
+kubectl get ingress -n webapps
+```
+
+---
+
+# 💾 Check PVC
+
+```bash
+kubectl get pvc -n webapps
+```
+
+---
+
+# 📦 Check PV
+
+```bash
+kubectl get pv
+```
+
+---
+
+# 🎯 Expected Result
+
+You should see:
+
+- mysql pod running
+- ingress created
+- pvc bound
+- pv bound
+- load balancer address available
+
+---
+
+# ✅ Full CI/CD + EKS Flow Working
+
+Now your full deployment flow is working successfully with:
+
+- Jenkins
+- Kubernetes
+- Amazon EKS
+- NGINX Ingress Controller
+- Amazon EBS CSI Driver
+
+
+# ☕ Fix Spring Boot Application Configuration
+
+## Spring Boot App Configuration
+
+In your BankApp source code:
+
+Open:
+
+```text
+src/main/resources/application.properties
+```
+
+---
+
+# 🔧 Replace Datasource Settings
+
+Replace existing datasource configuration with:
+
+```properties
+spring.datasource.url=jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+spring.datasource.username=${DB_USER}
+
+spring.datasource.password=${DB_PASSWORD}
+
+spring.jpa.hibernate.ddl-auto=update
+
+spring.jpa.show-sql=true
+
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect
+```
+
+---
+
+# 🚀 Rerun Jenkins CD Pipeline
+
+After updating:
+
+```text
+application.properties
+```
+
+rerun:
+
+```text
+Jenkins CD Pipeline
+```
+
+---
+
+# ✅ Verify Pods
+
+Run:
+
+```bash
+kubectl get pods -n webapps
+```
+
+You want:
+
+```text
+Running
+```
+
+for:
+
+- bankapp
+- mysql
+
+---
+
+# 🌐 Access Application
+
+Now you can access your application using:
+
+```text
+http://a1d2492cf9b394405b60ec60c5fdc9d8-1364725057.ap-south-1.elb.amazonaws.com
+```
+
+---
+
+# 🏆 Better Practice
+
+## For MySQL
+
+Keep MySQL service as:
+
+```text
+ClusterIP
+```
+
+Do NOT create ingress for MySQL.
+
+---
+
+# 🌐 For Your Actual Website/Application
+
+Create ingress only for:
+
+- frontend
+- backend app
+- APIs
+
+---
+
+# 📌 Recommended Flow
+
+```text
+Frontend App ---> Ingress ---> Service ---> Pods
+                                  |
+                                  ---> MySQL Service
+```
+
+---
+
+# 💾 Best Practice for Databases
+
+Use:
+
+- StatefulSet
+- PVC
+- Secret
+
+instead of:
+
+- plain Deployment
+- hardcoded credentials
+
+---
+
+# ✅ Recommended Kubernetes Database Setup
+
+```text
+StatefulSet + PVC + Secret
+```
+
+---
+
+# 🎯 Final Result
+
+After configuration:
+
+✅ Spring Boot Connected to MySQL  
+✅ Kubernetes Secrets Used  
+✅ Jenkins CD Pipeline Working  
+✅ Application Running on EKS  
+✅ MySQL Running with Persistent Storage  
+✅ Ingress Working Successfully
+
+
+# 📊 Monitoring Setup using Prometheus & Grafana
+
+## Create `values.yaml`
+
+```yaml
+alertmanager:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: ebs-sc
+
+          accessModes:
+            - ReadWriteOnce
+
+          resources:
+            requests:
+              storage: 5Gi
+
+  service:
+    type: LoadBalancer
+
+grafana:
+  enabled: true
+
+  adminUser: admin
+  adminPassword: admin123
+
+  service:
+    type: LoadBalancer
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true
+
+additionalScrapeConfigs:
+
+  - job_name: node-exporter
+
+    static_configs:
+      - targets:
+          - monitoring-prometheus-node-exporter:9100
+
+  - job_name: kube-state-metrics
+
+    static_configs:
+      - targets:
+          - monitoring-kube-state-metrics:8080
+```
+
+---
+
+# 🚀 Add Prometheus Helm Repository
+
+Run:
+
+```bash
+helm repo add prometheus-community \
+https://prometheus-community.github.io/helm-charts
+```
+
+---
+
+# 🔄 Update Helm Repository
+
+Run:
+
+```bash
+helm repo update
+```
+
+---
+
+# 📦 Install Monitoring Stack
+
+Run:
+
+```bash
+helm upgrade --install monitoring \
+prometheus-community/kube-prometheus-stack \
+-f values.yaml \
+-n monitoring \
+--create-namespace
+```
+
+---
+
+# ✅ Check Monitoring Pods
+
+Run:
+
+```bash
+kubectl get pods -n monitoring
+```
+
+Wait until all pods become:
+
+```text
+Running
+```
+
+---
+
+# 🌐 Get Monitoring Services
+
+Run:
+
+```bash
+kubectl get svc -n monitoring
+```
+
+You will get external:
+
+- Grafana LoadBalancer URL
+- Prometheus LoadBalancer URL
+
+---
+
+# 🌍 Enable External IP
+
+Run:
+
+```bash
+kubectl patch svc monitoring-kube-prometheus-prometheus \
+-n monitoring \
+-p '{"spec":{"type":"LoadBalancer"}}'
+```
+
+---
+
+```bash
+kubectl patch svc monitoring-kube-state-metrics \
+-n monitoring \
+-p '{"spec":{"type":"LoadBalancer"}}'
+```
+
+---
+
+```bash
+kubectl patch svc monitoring-prometheus-node-exporter \
+-n monitoring \
+-p '{"spec":{"type":"LoadBalancer"}}'
+```
+
+---
+
+# ✅ Verify External IP
+
+Run:
+
+```bash
+kubectl get svc -n monitoring
+```
+
+You should see:
+
+```text
+EXTERNAL-IP
+```
+
+---
+
+# 📊 Monitoring Components Enabled
+
+- Prometheus
+- Grafana
+- Node Exporter
+- kube-state-metrics
+
+---
+
+# 📈 Features Included
+
+## Prometheus
+
+- Metrics collection
+- Kubernetes monitoring
+- Alerting support
+
+---
+
+## Grafana
+
+- Dashboards
+- Visualization
+- Monitoring UI
+
+Default credentials:
+
+```text
+Username: admin
+Password: admin123
+```
+
+---
+
+## Node Exporter
+
+Provides:
+
+- CPU metrics
+- Memory metrics
+- Disk metrics
+- Node metrics
+
+---
+
+## kube-state-metrics
+
+Provides:
+
+- Pod metrics
+- Deployment metrics
+- StatefulSet metrics
+- Cluster object metrics
+
+---
+
+# 🎯 Final Result
+
+Your full DevOps stack is now running:
+
+✅ Terraform  
+✅ AWS EKS  
+✅ Jenkins CI/CD  
+✅ DockerHub image deployment  
+✅ Kubernetes manifests  
+✅ Ingress + LoadBalancer  
+✅ Persistent storage (EBS/PVC/PV)  
+✅ MySQL database  
+✅ Spring Boot BankApp  
+✅ Prometheus monitoring  
+✅ Grafana dashboards  
+✅ Node Exporter metrics  
+✅ kube-state-metrics  
+
+---
+
+# 🚀 Complete Production-Style Environment
+
+This is now a complete:
+
+```text
+Production-style DevOps/Kubernetes Environment
+```
+
+using:
+
+- AWS EKS
+- Terraform
+- Jenkins
+- Kubernetes
+- Prometheus
+- Grafana
+- EBS Storage
+- CI/CD Pipeline
+- Monitoring Stack
 
 
