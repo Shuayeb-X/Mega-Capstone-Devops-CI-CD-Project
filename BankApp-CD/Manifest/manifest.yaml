@@ -1,0 +1,263 @@
+# =========================
+# Secret
+# =========================
+apiVersion: v1
+kind: Secret
+
+metadata:
+  name: mysql-secret
+  namespace: webapps
+
+type: Opaque
+
+stringData:
+  MYSQL_ROOT_PASSWORD: root123
+  MYSQL_DATABASE: mydb
+
+---
+# =========================
+# EBS StorageClass
+# =========================
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+
+metadata:
+  name: ebs-sc
+
+provisioner: ebs.csi.aws.com
+
+reclaimPolicy: Retain
+
+volumeBindingMode: WaitForFirstConsumer
+
+parameters:
+  type: gp2
+  fsType: ext4
+
+---
+# =========================
+# PersistentVolumeClaim
+# =========================
+apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: mysql-pvc
+  namespace: webapps
+
+spec:
+  accessModes:
+    - ReadWriteOnce
+
+  storageClassName: ebs-sc
+
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# =========================
+# MySQL Deployment
+# =========================
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: mysql
+  namespace: webapps
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: mysql
+
+  template:
+    metadata:
+      labels:
+        app: mysql
+
+    spec:
+      containers:
+        - name: mysql
+
+          image: mysql:8
+
+          ports:
+            - containerPort: 3306
+
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_ROOT_PASSWORD
+
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_DATABASE
+
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+
+---
+# =========================
+# MySQL Service
+# =========================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: mysql-service
+  namespace: webapps
+
+spec:
+  selector:
+    app: mysql
+
+  ports:
+    - port: 3306
+      targetPort: 3306
+
+  type: ClusterIP
+
+---
+# =========================
+# BankApp Deployment
+# =========================
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: bankapp
+  namespace: webapps
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: bankapp
+
+  template:
+    metadata:
+      labels:
+        app: bankapp
+
+    spec:
+      containers:
+        - name: bankapp
+
+          image: shauyeb009/bankapp:v25
+
+          ports:
+            - containerPort: 8083
+
+          env:
+            - name: DB_HOST
+              value: mysql-service
+
+            - name: DB_PORT
+              value: "3306"
+
+            - name: DB_NAME
+              value: mydb
+
+            - name: DB_USER
+              value: root
+
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_ROOT_PASSWORD
+
+---
+# =========================
+# BankApp Service
+# =========================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: bankapp-service
+  namespace: webapps
+
+spec:
+  selector:
+    app: bankapp
+
+  ports:
+    - port: 80
+      targetPort: 8080
+
+  type: ClusterIP
+
+---
+# =========================
+# HPA
+# =========================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+
+metadata:
+  name: bankapp-hpa
+  namespace: webapps
+
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: bankapp
+
+  minReplicas: 1
+  maxReplicas: 3
+
+  metrics:
+    - type: Resource
+
+      resource:
+        name: cpu
+
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+---
+# =========================
+# Ingress
+# =========================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+
+metadata:
+  name: bankapp-ingress
+  namespace: webapps
+
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+
+spec:
+  ingressClassName: nginx
+
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+
+            backend:
+              service:
+                name: bankapp-service
+
+                port:
+                  number: 80
