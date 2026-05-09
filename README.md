@@ -55,6 +55,128 @@ Monitoring Stack
 
 ---
 
+
+# 🖥️ Infrastructure Setup
+
+Here we are using **4 Virtual Machines (VMs)** for the complete DevOps environment.
+
+---
+
+# 🖥️ VM Architecture
+
+| VM | Purpose |
+|----|----------|
+| VM 1 | Kubernetes Cluster + Monitoring Tools |
+| VM 2 | Jenkins Server for CI/CD |
+| VM 3 | SonarQube Server for Report Analysis |
+| VM 4 | Nexus Repository Server |
+
+---
+
+# 📦 VM 1 — Kubernetes & Monitoring Server
+
+This VM is used for:
+
+- AWS EKS Cluster Setup
+- kubectl Configuration
+- Terraform Execution
+- NGINX Ingress Controller
+- Prometheus Monitoring
+- Grafana Dashboards
+- Metrics Server
+- Kubernetes Management
+
+Installed Components:
+
+```text
+- Terraform
+- kubectl
+- Helm
+- AWS CLI
+- Prometheus
+- Grafana
+- Metrics Server
+- Ingress Controller
+```
+
+---
+
+# 🚀 VM 2 — Jenkins Server
+
+This VM is used for:
+
+- CI/CD Pipelines
+- Docker Build & Push
+- Kubernetes Deployment
+- Automation
+
+Installed Components:
+
+```text
+- Jenkins
+- Docker
+- Trivy
+- kubectl
+```
+
+Responsibilities:
+
+```text
+CI Repo  ---> Build Docker Image
+
+CD Repo  ---> Deploy Kubernetes Manifests
+```
+
+---
+
+# 🔍 VM 3 — SonarQube Server
+
+This VM is used for:
+
+- Code Quality Analysis
+- Bug Detection
+- Security Analysis
+- Report Generation
+
+Installed Components:
+
+```text
+- SonarQube
+- Docker
+```
+
+Purpose:
+
+```text
+Analyze source code before deployment
+```
+
+---
+
+# 📦 VM 4 — Nexus Repository Server
+
+This VM is used for:
+
+- Artifact Repository
+- Docker Image Storage
+- Build Artifact Management
+- Dependency Hosting
+
+Installed Components:
+
+```text
+- Nexus Repository
+- Docker
+```
+
+Purpose:
+
+```text
+Store build artifacts and Docker images
+```
+
+---
+
 # 🛠️ Tech Stack
 
 | Tool | Purpose |
