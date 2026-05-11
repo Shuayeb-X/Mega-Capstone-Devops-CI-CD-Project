@@ -1,0 +1,85 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven3'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+        IMAGE_TAG = "v${BUILD_NUMBER}"
+    }
+
+    stages {
+
+        stage('Git Checkout') {
+            steps {
+                git branch: 'main',
+                credentialsId: 'git',
+                url: 'https://github.com/Shuayeb-X/BankApp-CI.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+
+        stage('Trivy FS Scan') {
+            steps {
+                sh 'trivy fs --format table -o fs-report.txt .'
+            }
+        }
+
+        stage('Sonarqube Analysis') {
+            steps {
+                withSonarQubeEnv('sonar') {
+
+                    sh """
+                    \$SCANNER_HOME/bin/sonar-scanner \
+                    -Dsonar.projectName=GCBank \
+                    -Dsonar.projectKey=GCBank \
+                    -Dsonar.java.binaries=target
+                    """
+                }
+            }
+        }
+
+        stage('Quality Gate Checks') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: false
+                }
+            }
+        }
+
+        stage('Build & Tag Docker Image') {
+            steps {
+                    sh "docker build -t shauyeb009/bankapp:${IMAGE_TAG} ."
+                    }
+                }
+
+        stage('Trivy Image Scan') {
+            steps {
+                sh "trivy image --format table -o image-report.txt shauyeb009/bankapp:${IMAGE_TAG}"
+            }
+        }
+
+        stage('Push Docker Image') {
+    steps {
+
+        withCredentials([usernamePassword(
+            credentialsId: 'docker-token',
+            usernameVariable: 'DOCKER_USER',
+            passwordVariable: 'DOCKER_PASS'
+        )]) {
+
+            sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+
+            sh "docker push shuayeb009/bankapp:${IMAGE_TAG}"
+        }
+    }
+}
+    }
+}
